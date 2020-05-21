@@ -53,6 +53,10 @@ PLUGINS = {
         'forecast_polygon': {
             'filename_pattern': 'meteocode/geodata/',
             'handler': 'msc_pygeoapi.loader.forecast_polygons.ForecastPolygonsLoader'  # noqa
+        },
+        'emet': {
+            'filename_pattern': 'g1710n',
+            'handler': 'msc_pygeoapi.loader.forecast_polygons.EmetLoader'  # noqa
         }
     }
 }
