@@ -30,6 +30,7 @@
 import logging
 import os
 
+from msc_pygeoapi.util import str2bool
 
 LOGGER = logging.getLogger(__name__)
 
@@ -60,3 +61,13 @@ else:
     MSC_PYGEOAPI_ES_AUTH = (MSC_PYGEOAPI_ES_USERNAME, MSC_PYGEOAPI_ES_PASSWORD)
 
 MSC_PYGEOAPI_BASEPATH = os.path.dirname(os.path.realpath(__file__))
+
+NOTIFICATIONS = str2bool(os.environ.get('MSC_PYGEOAPI_NOTIFICATIONS', False))
+NOTIFICATIONS_TYPE = os.environ.get('MSC_PYGEOAPI_NOTIFICATIONS_TYPE', None)
+NOTIFICATIONS_URL = os.environ.get('MSC_PYGEOAPI_NOTIFICATIONS_URL', None)
+
+NOTIFICATIONS_PROVIDER_DEF = {
+    'type': NOTIFICATIONS_TYPE,
+    'active': NOTIFICATIONS,
+    'url': NOTIFICATIONS_URL,
+}
