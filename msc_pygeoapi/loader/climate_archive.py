@@ -80,7 +80,7 @@ class ClimateArchiveLoader(BaseLoader):
         """
 
         if index == 'stations':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -189,10 +189,12 @@ class ClimateArchiveLoader(BaseLoader):
             }
 
             index_name = 'climate_station_information'
-            self.conn.create(index_name, mapping, overwrite=True)
+            self.conn.create(
+                index_name=index_name, config=config, overwrite=True
+            )
 
         if index == 'normals':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -286,10 +288,12 @@ class ClimateArchiveLoader(BaseLoader):
             }
 
             index_name = 'climate_normals_data'
-            self.conn.create(index_name, mapping, overwrite=True)
+            self.conn.create(
+                index_name=index_name, config=config, overwrite=True
+            )
 
         if index == 'monthly_summary':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -373,10 +377,12 @@ class ClimateArchiveLoader(BaseLoader):
             }
 
             index_name = 'climate_public_climate_summary'
-            self.conn.create(index_name, mapping, overwrite=True)
+            self.conn.create(
+                index_name=index_name, config=config, overwrite=True
+            )
 
         if index == 'daily_summary':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -488,10 +494,12 @@ class ClimateArchiveLoader(BaseLoader):
             }
 
             index_name = 'climate_public_daily_data'
-            self.conn.create(index_name, mapping, overwrite=True)
+            self.conn.create(
+                index_name=index_name, config=config, overwrite=True
+            )
 
         if index == 'hourly_summary':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -599,7 +607,9 @@ class ClimateArchiveLoader(BaseLoader):
             }
 
             index_name = 'climate_public_hourly_data'
-            self.conn.create(index_name, mapping, overwrite=True)
+            self.conn.create(
+                index_name=index_name, config=config, overwrite=True
+            )
 
     def generate_stations(self):
         """

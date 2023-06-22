@@ -72,7 +72,7 @@ COVERAGE_TYPES = {
 }
 INDEX_BASENAME = 'radar_coverage-{}-{}-realtime'
 
-SETTINGS = {
+CONFIG = {
     'order': 0,
     'version': 1,
     'index_patterns': ['radar_coverage-*'],
@@ -119,7 +119,8 @@ class RadarCoverageRealtimeLoader(BaseLoader):
         self.interval_minutes = 6
         self.retention_time_minutes = 180
 
-        self.conn.create_template('radar_coverage', SETTINGS)
+        self.conn.create_template(
+            name='radar_coverage', config=CONFIG)
 
     def parse_filename(self):
         """
@@ -237,9 +238,9 @@ class RadarCoverageRealtimeLoader(BaseLoader):
 
         results = self.conn.Elasticsearch.search(
             index=f'radar_coverage-{self.precip_type}-{self.product_type}-realtime',  # noqa
-            body=query,
             _source=['properties.datetime'],
-            size=len(expected_intervals)
+            size=len(expected_intervals),
+            **query
         )
 
         retrieved_datetimes = [

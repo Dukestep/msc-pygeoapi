@@ -76,7 +76,7 @@ MAPPINGS = {
     }
 }
 
-SETTINGS = {
+CONFIG = {
     'order': 0,
     'version': 1,
     'index_patterns': ['{}*'.format(INDEX_BASENAME)],
@@ -97,8 +97,8 @@ class CumulativeEffectsHSLoader(BaseLoader):
         self.datetime = None
         self.conn = ElasticsearchConnector(conn_config)
 
-        SETTINGS['mappings'] = MAPPINGS
-        self.conn.create_template(INDEX_BASENAME, SETTINGS)
+        CONFIG['mappings'] = MAPPINGS
+        self.conn.create_template(name=INDEX_BASENAME, config=CONFIG)
 
     def generate_geojson_features(self):
         """

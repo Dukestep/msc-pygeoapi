@@ -64,7 +64,7 @@ class AhccdLoader(BaseLoader):
         """
 
         if index == 'annual':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -156,10 +156,12 @@ class AhccdLoader(BaseLoader):
                 },
             }
 
-            self.conn.create('ahccd_annual', mapping=mapping, overwrite=True)
+            self.conn.create(
+                index_name='ahccd_annual', config=config, overwrite=True
+            )
 
         if index == 'monthly':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -253,10 +255,12 @@ class AhccdLoader(BaseLoader):
                 },
             }
 
-            self.conn.create('ahccd_monthly', mapping=mapping, overwrite=True)
+            self.conn.create(
+                index_name='ahccd_monthly', config=config, overwrite=True
+            )
 
         if index == 'seasonal':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -348,10 +352,12 @@ class AhccdLoader(BaseLoader):
                 },
             }
 
-            self.conn.create('ahccd_seasonal', mapping=mapping, overwrite=True)
+            self.conn.create(
+                index_name='ahccd_seasonal', config=config, overwrite=True
+            )
 
         if index == 'stations':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -399,10 +405,12 @@ class AhccdLoader(BaseLoader):
                 },
             }
 
-            self.conn.create('ahccd_stations', mapping=mapping, overwrite=True)
+            self.conn.create(
+                index_name='ahccd_stations', config=config, overwrite=True
+            )
 
         if index == 'trends':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -450,7 +458,9 @@ class AhccdLoader(BaseLoader):
                 },
             }
 
-            self.conn.create('ahccd_trends', mapping=mapping, overwrite=True)
+            self.conn.create(
+                index_name='ahccd_trends', config=config, overwrite=True
+            )
 
     def generate_docs(self, fp, index):
         """

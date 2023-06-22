@@ -58,7 +58,7 @@ STATIONS_CACHE = os.path.join(MSC_PYGEOAPI_CACHEDIR, STATIONS_LIST_NAME)
 if not os.path.exists(MSC_PYGEOAPI_CACHEDIR):
     os.makedirs(MSC_PYGEOAPI_CACHEDIR)
 
-SETTINGS = {
+CONFIG = {
     'order': 0,
     'version': 1,
     'index_patterns': ['{}'.format(INDEX_BASENAME)],
@@ -143,7 +143,7 @@ class AQHIStationLoader(BaseLoader):
         if not os.path.exists(self.filepath):
             download_stations()
 
-        self.conn.create_template(INDEX_BASENAME, SETTINGS)
+        self.conn.create_template(name=INDEX_BASENAME, config=CONFIG)
 
     def generate_geojson_features(self):
         """

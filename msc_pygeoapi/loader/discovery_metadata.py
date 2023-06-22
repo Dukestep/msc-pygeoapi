@@ -45,7 +45,7 @@ LOGGER = logging.getLogger(__name__)
 # index settings
 INDEX_NAME = 'discovery-metadata'
 
-SETTINGS = {
+CONFIG = {
     'settings': {
         'number_of_shards': 1, 'number_of_replicas': 0
     },
@@ -72,7 +72,7 @@ class DiscoveryMetadataLoader(BaseLoader):
 
         if not self.conn.exists(INDEX_NAME):
             LOGGER.debug('Creating index {}'.format(INDEX_NAME))
-            self.conn.create(INDEX_NAME, SETTINGS)
+            self.conn.create(INDEX_NAME, config=CONFIG)
 
     def load_data(self, json_dict):
         """

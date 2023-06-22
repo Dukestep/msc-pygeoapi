@@ -97,12 +97,12 @@ class ElasticsearchConnector(BaseConnector):
 
         return Elasticsearch(**es_args)
 
-    def create(self, index_name, mapping, overwrite=False):
+    def create(self, index_name, config, overwrite=False):
         """
         create an Elasticsearch index
 
         :param index_name: name of in index to create
-        :mapping: `dict` mapping of index to create
+        :config: `dict` configuration of index to create
         :overwrite: `bool` indicating whether to overwrite index if it already
                     exists
 
@@ -123,8 +123,8 @@ class ElasticsearchConnector(BaseConnector):
 
         self.Elasticsearch.indices.create(
             index=index_name,
-            body=mapping,
-            request_timeout=MSC_PYGEOAPI_ES_TIMEOUT
+            request_timeout=MSC_PYGEOAPI_ES_TIMEOUT,
+            **config
         )
 
         return True
@@ -176,18 +176,18 @@ class ElasticsearchConnector(BaseConnector):
 
         return True
 
-    def create_template(self, name, settings):
+    def create_template(self, name, config):
         """
         create an Elasticsearch index template
 
         :param name: `str` index template name
-        :param settings: `dict` settings dictionnary for index template
+        :param config: `dict` config dictionnary for index template
 
         :return: `bool` of index template creation status
         """
 
         if not self.Elasticsearch.indices.exists_template(name=name):
-            self.Elasticsearch.indices.put_template(name=name, body=settings)
+            self.Elasticsearch.indices.put_template(name=name, **config)
 
         return True
 
@@ -220,13 +220,12 @@ class ElasticsearchConnector(BaseConnector):
         if not self.Elasticsearch.indices.exists_alias(name=alias):
             self.Elasticsearch.indices.put_alias(index=index, name=alias)
         elif overwrite:
+            actions = [
+                {'remove': {'index': '*', 'alias': alias}},
+                {'add': {'index': index, 'alias': alias}}
+            ]
             self.Elasticsearch.indices.update_aliases(
-                body={
-                    'actions': [
-                        {'remove': {'index': '*', 'alias': alias}},
-                        {'add': {'index': index, 'alias': alias}},
-                    ]
-                }
+                actions=actions,
             )
         else:
             LOGGER.warning(f'Alias {alias} already exists')
@@ -306,7 +305,7 @@ class ElasticsearchConnector(BaseConnector):
         """
 
         self.Elasticsearch.update_by_query(
-            body=query, index=name, refresh=True
+            query=query, index=name, refresh=True
         )
 
         return True

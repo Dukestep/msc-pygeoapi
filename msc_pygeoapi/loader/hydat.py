@@ -99,7 +99,7 @@ class HydatLoader(BaseLoader):
         :param index: name for the index(es) to be created.
         """
         if index == 'observations':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -153,9 +153,11 @@ class HydatLoader(BaseLoader):
             }
 
             index_name = 'hydrometric_daily_mean'
-            self.conn.create(index_name, mapping, overwrite=True)
+            self.conn.create(
+                index_name=index_name, config=config, overwrite=True
+            )
 
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -190,10 +192,12 @@ class HydatLoader(BaseLoader):
             }
 
             index_name = 'hydrometric_monthly_mean'
-            self.conn.create(index_name, mapping, overwrite=True)
+            self.conn.create(
+                index_name=index_name, config=config, overwrite=True
+            )
 
         if index == 'annual_statistics':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -259,10 +263,12 @@ class HydatLoader(BaseLoader):
             }
 
             index_name = 'hydrometric_annual_statistics'
-            self.conn.create(index_name, mapping, overwrite=True)
+            self.conn.create(
+                index_name=index_name, config=config, overwrite=True
+            )
 
         if index == 'stations':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -314,10 +320,12 @@ class HydatLoader(BaseLoader):
             }
 
             index_name = 'hydrometric_stations'
-            self.conn.create(index_name, mapping, overwrite=True)
+            self.conn.create(
+                index_name=index_name, config=config, overwrite=True
+            )
 
         if index == 'annual_peaks':
-            mapping = {
+            config = {
                 "settings": {"number_of_shards": 1, "number_of_replicas": 0},
                 "mappings": {
                     "_meta": {"geomfields": {"geometry": "POINT"}},
@@ -390,7 +398,9 @@ class HydatLoader(BaseLoader):
             }
 
             index_name = 'hydrometric_annual_peaks'
-            self.conn.create(index_name, mapping, overwrite=True)
+            self.conn.create(
+                index_name=index_name, config=config, overwrite=True
+            )
 
     def connect_db(self):
         """

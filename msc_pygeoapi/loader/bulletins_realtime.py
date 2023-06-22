@@ -48,7 +48,7 @@ DAYS_TO_KEEP = 140
 # index settings
 INDEX_BASENAME = 'bulletins.'
 
-SETTINGS = {
+CONFIG = {
     'order': 0,
     'version': 1,
     'index_patterns': ['{}*'.format(INDEX_BASENAME)],
@@ -124,7 +124,7 @@ class BulletinsRealtimeLoader(BaseLoader):
 
         self.DD_URL = 'https://dd.weather.gc.ca/bulletins/alphanumeric'
         self.conn = ElasticsearchConnector(conn_config)
-        self.conn.create_template(INDEX_BASENAME, SETTINGS)
+        self.conn.create_template(name=INDEX_BASENAME, config=CONFIG)
 
     def load_data(self, filepath):
         """
@@ -146,7 +146,7 @@ class BulletinsRealtimeLoader(BaseLoader):
 
         try:
             r = self.conn.Elasticsearch.index(
-                index=es_index, id=data['id'], body=data
+                index=es_index, id=data['id'], document=data
             )
             LOGGER.debug('Result: {}'.format(r))
             return True

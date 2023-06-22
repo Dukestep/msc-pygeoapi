@@ -157,7 +157,7 @@ def get_files(layers, fh, mr):
             }
 
             try:
-                res = es.search(index=ES_INDEX, body=s_object)
+                res = es.search(index=ES_INDEX, query=s_object)
                 try:
                     filepath = (res['hits']['hits'][0]
                                 ['_source']['properties']['filepath'])

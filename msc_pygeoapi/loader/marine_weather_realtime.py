@@ -306,7 +306,7 @@ MAPPINGS = {
     },
 }
 
-SETTINGS = {
+CONFIG = {
     'settings': {'number_of_shards': 1, 'number_of_replicas': 0},
     'mappings': {
         'properties': {
@@ -337,10 +337,12 @@ class MarineWeatherRealtimeLoader(BaseLoader):
 
         # create marine weather indices if it don't exist
         for item in MAPPINGS:
-            SETTINGS['mappings']['properties']['properties'][
+            CONFIG['mappings']['properties']['properties'][
                 'properties'
             ] = MAPPINGS[item]
-            self.conn.create(INDEX_NAME.format(item), SETTINGS)
+            self.conn.create(
+                index_name=INDEX_NAME.format(item), config=CONFIG
+            )
 
     def parse_filename(self):
         """

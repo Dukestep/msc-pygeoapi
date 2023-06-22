@@ -58,7 +58,7 @@ DAYS_TO_KEEP = 30
 # index settings
 INDEX_BASENAME = 'hydrometric_realtime.'
 
-SETTINGS = {
+CONFIG = {
     'order': 0,
     'version': 1,
     'index_patterns': ['{}*'.format(INDEX_BASENAME)],
@@ -175,7 +175,7 @@ class HydrometricRealtimeLoader(BaseLoader):
         BaseLoader.__init__(self)
 
         self.conn = ElasticsearchConnector(conn_config)
-        self.conn.create_template(INDEX_BASENAME, SETTINGS)
+        self.conn.create_template(name=INDEX_BASENAME, config=CONFIG)
 
         self.stations = {}
         self.read_stations_list()

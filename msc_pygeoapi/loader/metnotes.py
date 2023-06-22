@@ -153,7 +153,7 @@ MAPPINGS = {
     }
 }
 
-SETTINGS = {
+CONFIG = {
     'order': 0,
     'version': 1,
     'index_patterns': ['{}*'.format(INDEX_BASENAME)],
@@ -175,8 +175,8 @@ class MetNotesRealtimeLoader(BaseLoader):
         self.filename = None
         self.latest_file = None
 
-        SETTINGS['mappings'] = MAPPINGS
-        self.conn.create_template(INDEX_BASENAME, SETTINGS)
+        CONFIG['mappings'] = MAPPINGS
+        self.conn.create_template(name=INDEX_BASENAME, config=CONFIG)
 
     def load_data(self, filepath):
         """
@@ -243,7 +243,7 @@ class MetNotesRealtimeLoader(BaseLoader):
 
         try:
             r = self.conn.Elasticsearch.index(
-                index=es_index, id=id, body=feature, refresh=True
+                index=es_index, id=id, document=feature, refresh=True
             )
             LOGGER.debug('Result: {}'.format(r))
             return True

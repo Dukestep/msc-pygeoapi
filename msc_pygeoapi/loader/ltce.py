@@ -55,7 +55,7 @@ DAYS_TO_KEEP = 7
 INDEX_BASENAME = 'ltce_{}.'
 INDEX_PATTERN = '{index_name}.{year:d}-{month:d}-{day:d}.{hour:2d}{minute:2d}{second:2d}'  # noqa
 
-SETTINGS = {
+CONFIG = {
     'order': 0,
     'version': 1,
     'index_patterns': [],
@@ -378,11 +378,13 @@ class LtceLoader(BaseLoader):
             self.db_conn = self.cur = None
 
         for item in MAPPINGS:
-            SETTINGS['mappings']['properties']['properties'][
+            CONFIG['mappings']['properties']['properties'][
                 'properties'
             ] = MAPPINGS[item]
-            SETTINGS['index_patterns'] = [f'ltce_{item}.*']
-            self.conn.create_template(INDEX_BASENAME.format(item), SETTINGS)
+            CONFIG['index_patterns'] = [f'ltce_{item}.*']
+            self.conn.create_template(
+                name=INDEX_BASENAME.format(item), config=CONFIG
+            )
 
     def get_stations_info(self, element_name, station_id):
         """
@@ -396,30 +398,28 @@ class LtceLoader(BaseLoader):
         :return: `dict` of stations information
         """
         query = {
-            "query": {
-                "bool": {
-                    "filter": {
-                        "bool": {
-                            "must": [
-                                {
-                                    "term": {
-                                        "properties.VIRTUAL_CLIMATE_ID.raw": station_id  # noqa
-                                    }
-                                },
-                                {
-                                    "term": {
-                                        "properties.ELEMENT_NAME_E.raw": element_name  # noqa
-                                    }
-                                },
-                            ]
-                        }
+            "bool": {
+                "filter": {
+                    "bool": {
+                        "must": [
+                            {
+                                "term": {
+                                    "properties.VIRTUAL_CLIMATE_ID.raw": station_id  # noqa
+                                }
+                            },
+                            {
+                                "term": {
+                                    "properties.ELEMENT_NAME_E.raw": element_name  # noqa
+                                }
+                            },
+                        ]
                     }
                 }
             }
         }
 
         results = self.conn.Elasticsearch.search(
-            body=query,
+            query=query,
             index='ltce_stations',
             _source=[
                 'properties.CLIMATE_IDENTIFIER',
@@ -1098,8 +1098,8 @@ def add(
                     f'to index ltce_stations.{loader.date}.'
                 )
                 loader.conn.create_alias(
-                    'ltce_stations',
-                    f'ltce_stations.{loader.date}',
+                    alias='ltce_stations',
+                    index=f'ltce_stations.{loader.date}',
                     overwrite=True,
                 )
             else:
@@ -1119,8 +1119,8 @@ def add(
                     f'point to index ltce_temp_extremes.{loader.date}.'
                 )
                 loader.conn.create_alias(
-                    'ltce_temp_extremes',
-                    f'ltce_temp_extremes.{loader.date}',
+                    alias='ltce_temp_extremes',
+                    index=f'ltce_temp_extremes.{loader.date}',
                     overwrite=True,
                 )
             else:
@@ -1143,8 +1143,8 @@ def add(
                     f'point to index ltce_precip_extremes.{loader.date}.'
                 )
                 loader.conn.create_alias(
-                    'ltce_precip_extremes',
-                    f'ltce_precip_extremes.{loader.date}',
+                    index='ltce_precip_extremes',
+                    alias=f'ltce_precip_extremes.{loader.date}',
                     overwrite=True,
                 )
             else:
@@ -1167,8 +1167,8 @@ def add(
                     f'point to index ltce_snow_extremes.{loader.date}.'
                 )
                 loader.conn.create_alias(
-                    'ltce_snow_extremes',
-                    f'ltce_snow_extremes.{loader.date}',
+                    alias='ltce_snow_extremes',
+                    index=f'ltce_snow_extremes.{loader.date}',
                     overwrite=True,
                 )
             else:

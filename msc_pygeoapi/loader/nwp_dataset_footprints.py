@@ -88,7 +88,7 @@ MAPPINGS = {
     }
 }
 
-SETTINGS = {
+CONFIG = {
     'order': 0,
     'version': 1,
     'index_patterns': ['{}*'.format(INDEX_NAME)],
@@ -111,8 +111,10 @@ class DatasetFootprintLoader(BaseLoader):
         self.proj4 = None
         self.conn = ElasticsearchConnector(conn_config)
 
-        SETTINGS['mappings'] = MAPPINGS
-        self.conn.create_template(INDEX_NAME, SETTINGS)
+        CONFIG['mappings'] = MAPPINGS
+        self.conn.create_template(
+            name=INDEX_NAME, config=CONFIG
+        )
 
     def open_mcf(self, filepath):
         '''
@@ -284,7 +286,7 @@ class DatasetFootprintLoader(BaseLoader):
             # Send the data to ElasticSearch
             try:
                 r = self.conn.Elasticsearch.index(
-                    index=INDEX_NAME, id=data['id'], body=data
+                    index=INDEX_NAME, id=data['id'], document=data
                 )
                 LOGGER.debug('Result: {}'.format(r))
                 return True

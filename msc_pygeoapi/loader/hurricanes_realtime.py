@@ -266,7 +266,7 @@ FILE_PROPERTIES = {
     }
 }
 
-SETTINGS = {
+CONFIG = {
     'settings': {
         'number_of_shards': 1,
         'number_of_replicas': 0
@@ -304,10 +304,12 @@ class HurricanesRealtimeLoader(BaseLoader):
 
         # create storm variable indices if it don't exist
         for item in FILE_PROPERTIES:
-            SETTINGS['mappings']['properties']['properties'][
+            CONFIG['mappings']['properties']['properties'][
                 'properties'
             ] = FILE_PROPERTIES[item]
-            self.conn.create(INDEX_NAME.format(item), SETTINGS)
+            self.conn.create(
+                index_name=INDEX_NAME.format(item), config=CONFIG
+            )
 
     def parse_filename(self):
         """
@@ -370,14 +372,14 @@ class HurricanesRealtimeLoader(BaseLoader):
 
         try:
             self.conn.Elasticsearch.update_by_query(index=INDEX_NAME.format(
-                self.storm_variable), body=query)
+                self.storm_variable), **query)
         except ConflictError:
             LOGGER.warning("Conflict error detected. Refreshing index and "
                            "retrying update by query.")
             self.conn.Elasticsearch.indices.refresh(index=INDEX_NAME.format(
                 self.storm_variable))
             self.conn.Elasticsearch.update_by_query(index=INDEX_NAME.format(
-                self.storm_variable), body=query)
+                self.storm_variable), **query)
 
         return True
 
@@ -535,7 +537,7 @@ def deactivate(ctx, days, es, username, password, ignore_certs):
             }
         }
 
-        conn.Elasticsearch.update_by_query(index=index, body=query)
+        conn.Elasticsearch.update_by_query(index=index, **query)
 
     return True
 

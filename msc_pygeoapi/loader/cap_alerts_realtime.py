@@ -55,7 +55,7 @@ ALERTS_LEVELS = ['advisory', 'statement', 'watch', 'warning']
 # Index settings
 INDEX_NAME = 'cap_alerts'
 
-SETTINGS = {
+CONFIG = {
     'settings': {
         'number_of_shards': 1,
         'number_of_replicas': 0
@@ -183,7 +183,7 @@ class CapAlertsRealtimeLoader(BaseLoader):
         BaseLoader.__init__(self)
 
         self.conn = ElasticsearchConnector(conn_config)
-        self.conn.create(INDEX_NAME, mapping=SETTINGS)
+        self.conn.create(index_name=INDEX_NAME, config=CONFIG)
         self.references_arr = []
 
     def load_data(self, filepath):
@@ -210,7 +210,7 @@ class CapAlertsRealtimeLoader(BaseLoader):
                 self.bulk_data.append(op_dict)
                 self.bulk_data.append(doc)
             r = self.conn.Elasticsearch.bulk(
-                index=INDEX_NAME, body=self.bulk_data
+                index=INDEX_NAME, operations=self.bulk_data
             )
 
             LOGGER.debug('Result: {}'.format(r))
@@ -237,15 +237,13 @@ class CapAlertsRealtimeLoader(BaseLoader):
             click.echo('Deleting old alerts')
 
             query = {
-                'query': {
-                    'terms': {
-                        'properties.reference': self.references_arr
-                    }
+                'terms': {
+                    'properties.reference': self.references_arr
                 }
             }
 
             self.conn.Elasticsearch.delete_by_query(
-                index=INDEX_NAME, body=query
+                index=INDEX_NAME, query=query
             )
 
             return True
@@ -519,16 +517,14 @@ def clean_records(ctx, days, es, username, password, ignore_certs):
         older_than, days))
 
     query = {
-        'query': {
-            'range': {
-                'properties.expires': {
-                    'lte': older_than
-                }
+        'range': {
+            'properties.expires': {
+                'lte': older_than
             }
         }
     }
 
-    conn.Elasticsearch.delete_by_query(index=INDEX_NAME, body=query)
+    conn.Elasticsearch.delete_by_query(index=INDEX_NAME, query=query)
 
 
 @click.command()

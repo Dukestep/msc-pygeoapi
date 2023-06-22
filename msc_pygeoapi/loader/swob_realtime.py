@@ -64,7 +64,7 @@ DAYS_TO_KEEP = 30
 # index settings
 INDEX_BASENAME = 'swob_realtime.'
 
-SETTINGS = {
+CONFIG = {
     'order': 0,
     'version': 1,
     'index_patterns': ['{}*'.format(INDEX_BASENAME)],
@@ -307,7 +307,9 @@ class SWOBRealtimeLoader(BaseLoader):
 
         self.conn = ElasticsearchConnector(conn_config)
         self.items = []
-        self.conn.create_template(INDEX_BASENAME, SETTINGS)
+        self.conn.create_template(
+            name=INDEX_BASENAME, config=CONFIG
+        )
 
     def generate_observations(self, filepath):
         """
@@ -359,7 +361,9 @@ class SWOBRealtimeLoader(BaseLoader):
         chunk_size = 80000
 
         package = self.generate_observations(filepath)
-        self.conn.submit_elastic_package(package, request_size=chunk_size)
+        self.conn.submit_elastic_package(
+            package, request_size=chunk_size
+        )
 
         return True
 

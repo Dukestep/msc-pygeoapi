@@ -153,7 +153,7 @@ MAPPINGS = {
     }
 }
 
-SETTINGS = {
+CONFIG = {
     'order': 0,
     'version': 1,
     'index_patterns': ['{}*'.format(INDEX_BASENAME)],
@@ -185,9 +185,9 @@ class AQHIRealtimeLoader(BaseLoader):
 
         for aqhi_type in template_mappings:
             template_name = INDEX_BASENAME.format(aqhi_type)
-            SETTINGS['index_patterns'] = ['{}*'.format(template_name)]
-            SETTINGS['mappings'] = MAPPINGS[aqhi_type]
-            self.conn.create_template(template_name, SETTINGS)
+            CONFIG['index_patterns'] = ['{}*'.format(template_name)]
+            CONFIG['mappings'] = MAPPINGS[aqhi_type]
+            self.conn.create_template(name=template_name, config=CONFIG)
 
     def parse_filename(self):
         """

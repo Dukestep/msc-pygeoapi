@@ -72,7 +72,7 @@ NATIONAL_CITIES = [
     'Yellowknife',
 ]
 
-SETTINGS = {
+CONFIG = {
     'settings': {
         'number_of_shards': 1,
         'number_of_replicas': 0
@@ -242,7 +242,7 @@ class CitypageweatherRealtimeLoader(BaseLoader):
         BaseLoader.__init__(self)
 
         self.conn = ElasticsearchConnector(conn_config)
-        self.conn.create(INDEX_NAME, mapping=SETTINGS)
+        self.conn.create(index_name=INDEX_NAME, config=CONFIG)
 
     def load_data(self, filepath):
         """
@@ -263,7 +263,7 @@ class CitypageweatherRealtimeLoader(BaseLoader):
             r = self.conn.Elasticsearch.index(
                 index=INDEX_NAME,
                 id=data['properties']['identifier'],
-                body=data
+                document=data
             )
             LOGGER.debug('Result: {}'.format(r))
             return True
@@ -516,16 +516,14 @@ def clean_records(ctx, days, es, username, password, ignore_certs):
         older_than, days))
 
     query = {
-        'query': {
-            'range': {
-                'properties.datetime': {
-                    'lte': older_than
-                }
+        'range': {
+            'properties.datetime': {
+                'lte': older_than
             }
         }
     }
 
-    conn.Elasticsearch.delete_by_query(index=INDEX_NAME, body=query)
+    conn.Elasticsearch.delete_by_query(index=INDEX_NAME, query=query)
 
 
 @click.command()

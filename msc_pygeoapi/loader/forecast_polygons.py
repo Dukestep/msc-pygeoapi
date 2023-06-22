@@ -253,7 +253,7 @@ FILE_PROPERTIES = {
     }
 }
 
-SETTINGS = {
+CONFIG = {
     'settings': {
         'number_of_shards': 1,
         'number_of_replicas': 0,
@@ -314,10 +314,10 @@ class ForecastPolygonsLoader(BaseLoader):
         # create forecast polygon indices if they don't exist
         for index in INDICES:
             zone = index.split('_')[2]
-            SETTINGS['mappings']['properties']['properties'][
+            CONFIG['mappings']['properties']['properties'][
                 'properties'
             ] = FILE_PROPERTIES[zone]
-            self.conn.create(index, SETTINGS)
+            self.conn.create(index_name=index, config=CONFIG)
 
     def parse_filename(self):
         """
