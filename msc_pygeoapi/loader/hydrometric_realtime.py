@@ -293,11 +293,10 @@ class HydrometricRealtimeLoader(BaseLoader):
                 try:
                     # Convert timestamp to UTC time.
                     utc_datetime = delocalize_date(date)
-                    utc_datestamp = utc_datetime.strftime('%Y-%m-%d.%H:%M:%S')
+                    utc_datestamp = utc_datetime.strftime('%Y-%m-%dT%H:%M:%SZ')
                     # Generate an ID now that all fields are known.
                     observation_id = '{}.{}'.format(station, utc_datestamp)
 
-                    utc_datestamp = utc_datestamp.replace('.', 'T')
                 except Exception as err:
                     LOGGER.error('Cannot interpret datetime value {} in {}'
                                  ' due to: {} (skipping)'
