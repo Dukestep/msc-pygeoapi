@@ -405,7 +405,7 @@ class MarineWeatherRealtimeLoader(BaseLoader):
 
         try:
             result = self.conn.Elasticsearch.get(
-                index='forecast_polygons_water_detail',
+                index='forecast_polygons_water_hybrid',
                 id=forecast_id,
                 _source=['geometry'],
             )
