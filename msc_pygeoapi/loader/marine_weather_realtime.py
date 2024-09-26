@@ -53,6 +53,8 @@ LOGGER = logging.getLogger(__name__)
 # index settings
 INDEX_NAME = 'marine_weather_{}'
 
+WATER_FORECAST_POLYGON_INDEX = 'forecast_polygons_water_hybrid'
+
 MAPPINGS = {
     'regular-forecasts': {
         'issued_datetime_utc': {
@@ -405,7 +407,7 @@ class MarineWeatherRealtimeLoader(BaseLoader):
 
         try:
             result = self.conn.Elasticsearch.get(
-                index='forecast_polygons_water_detail',
+                index=WATER_FORECAST_POLYGON_INDEX,
                 id=forecast_id,
                 _source=['geometry'],
             )
