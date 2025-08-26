@@ -462,6 +462,7 @@ class CanSIPSProductsProvider(RasterioProvider):
                 return cj
 
             else:
+                self.filename = f'{self.reference_time.strftime("%Y%m")}_MSC_CanSIPS_{property_}_AGL-2m_{self.period}.grib2'  # noqa
                 with MemoryFile() as memfile:
                     with memfile.open(**out_meta, nbits=30) as dest:
                         dest.write(out_image)
