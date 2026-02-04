@@ -1966,25 +1966,25 @@ class CitypageweatherRealtimeLoader(BaseLoader):
 
             self.cpw_feature['geometry'] = {
                 'type': 'Point',
-                'coordinates': [lon, lat, 0.0]
+                'coordinates': [lon, lat]
             }
 
-        if self.lang == 'en':
-            self._set_nested_value(
-                self.cpw_feature['properties'],
-                ['url'],
-                {
-                    self.lang: f'https://weather.gc.ca/city/pages/{self.citycode}_metric_e.html'  # noqa
-                }
-            )
-        else:
-            self._set_nested_value(
-                self.cpw_feature['properties'],
-                ['url'],
-                {
-                    self.lang: f'https://meteo.gc.ca/city/pages/{self.citycode}_metric_f.html'  # noqa
-                }
-            )
+            if self.lang == 'en':
+                self._set_nested_value(
+                    self.cpw_feature['properties'],
+                    ['url'],
+                    {
+                        self.lang: f'https://weather.gc.ca/en/location/index.html?coords={lat},{lon}'  # noqa
+                    },
+                )
+            else:
+                self._set_nested_value(
+                    self.cpw_feature['properties'],
+                    ['url'],
+                    {
+                        self.lang: f'https://meteo.gc.ca/fr/location/index.html?coords={lat},{lon}'  # noqa
+                    },
+                )
 
         return self.cpw_feature
 
