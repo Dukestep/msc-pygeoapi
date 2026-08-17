@@ -61,6 +61,9 @@ WGS84 = CRS.from_epsg(4326)
 # densification points per edge when projecting a ring
 DENSIFY = 50
 
+# longitude bins used to describe the edge of a pole-enclosing footprint
+CAP_BINS = 72
+
 
 @lru_cache(maxsize=64)
 def get_transformer(crs_src, crs_dest):
@@ -96,24 +99,73 @@ def densify(coords, n=DENSIFY):
     return out
 
 
-def project_ring(ring, crs_src, crs_dest):
+def project_ring(ring, crs_src, crs_dest, n=DENSIFY):
     """
     Project a densified ring, dropping points the projection cannot map
 
     :param ring: iterable of (x, y) pairs in crs_src
     :param crs_src: `pyproj.CRS` to transform from
     :param crs_dest: `pyproj.CRS` to transform to
+    :param n: densification points per segment
 
     :returns: tuple of (x, y) `numpy.ndarray` of finite coordinates
     """
 
-    xs, ys = zip(*densify(ring))
+    xs, ys = zip(*densify(ring, n))
     x, y = get_transformer(crs_src, crs_dest).transform(
         np.array(xs), np.array(ys), errcheck=False
     )
     ok = np.isfinite(x) & np.isfinite(y)
 
     return x[ok], y[ok]
+
+
+def polar_cap(lon, lat, north=True, nbins=CAP_BINS):
+    """
+    Cap polygon bounded by the per-longitude extreme of a projected ring
+
+    A grid enclosing a pole has a footprint that is a cap, not a simple
+    polygon, so the projected ring cannot be used directly. Binning the ring
+    by longitude and taking the extreme latitude in each bin describes the
+    cap's edge as a staircase, which is far tighter than the full longitude
+    band while still containing the grid.
+
+    Each bin also takes the extreme of its immediate neighbours. That single
+    bin of erosion is what keeps the result conservative: the ring is sampled,
+    not continuous, so an excursion between two samples could otherwise cut
+    inside the polygon and drop data the grid actually holds.
+
+    :param lon: `numpy.ndarray` of ring longitudes
+    :param lat: `numpy.ndarray` of ring latitudes
+    :param north: True for a north polar cap, False for a south polar cap
+    :param nbins: number of longitude bins
+
+    :returns: `shapely.geometry.Polygon` in WGS84
+    """
+
+    edges = np.linspace(-180.0, 180.0, nbins + 1)
+    binned = np.clip(np.digitize(lon, edges) - 1, 0, nbins - 1)
+    extreme = np.min if north else np.max
+
+    limits = np.array([
+        extreme(lat[binned == b]) if (binned == b).any() else np.nan
+        for b in range(nbins)
+    ])
+    limits = np.where(np.isnan(limits), extreme(lat), limits)
+
+    # erode by one bin, wrapping at the antimeridian
+    neighbours = np.vstack([np.roll(limits, k) for k in (-1, 0, 1)])
+    limits = (np.min(neighbours, axis=0) if north
+              else np.max(neighbours, axis=0))
+
+    ring = []
+    for i in range(nbins):
+        ring.append((edges[i], limits[i]))
+        ring.append((edges[i + 1], limits[i]))
+
+    pole = 90.0 if north else -90.0
+
+    return Polygon(ring + [(180.0, pole), (-180.0, pole)])
 
 
 @lru_cache(maxsize=32)
@@ -143,7 +195,7 @@ def grid_footprint(crs, bounds, n=200):
         (left, top),
         (left, bottom),
     ]
-    lon, lat = project_ring(ring, crs, WGS84)
+    lon, lat = project_ring(ring, crs, WGS84, n)
 
     if lon.size == 0:
         msg = f'Grid bounds {bounds} do not project to WGS84'
@@ -156,9 +208,7 @@ def grid_footprint(crs, bounds, n=200):
         if np.isfinite(px) and left <= px <= right and bottom <= py <= top:
             # the projected ring is a cap boundary, not a simple polygon
             LOGGER.debug(f'Grid encloses the {pole:+.0f} pole')
-            if pole > 0:
-                return box(-180.0, float(lat.min()), 180.0, 90.0)
-            return box(-180.0, -90.0, 180.0, float(lat.max()))
+            return polar_cap(lon, lat, north=pole > 0)
 
     return Polygon(zip(lon, lat))
 
@@ -243,6 +293,35 @@ def clip_bbox(bbox, bbox_crs, grid_crs, grid_bounds):
     if bbox_crs == grid_crs:
         return box(*bbox)
 
+    clipped = clip_bbox_geographic(bbox, bbox_crs, grid_crs, grid_bounds)
+
+    if clipped is None:
+        return None
+
+    x, y = project_ring(clipped.exterior.coords, WGS84, grid_crs)
+
+    if x.size == 0:
+        return None
+
+    return Polygon(zip(x, y)).convex_hull
+
+
+def clip_bbox_geographic(bbox, bbox_crs, grid_crs, grid_bounds):
+    """
+    Clip a request bbox to a grid's footprint, staying in WGS84
+
+    The geographic half of clip_bbox, kept separate because a consumer
+    resampling into a geographic output grid needs the clip before it is
+    projected, not after.
+
+    :param bbox: (minx, miny, maxx, maxy) in bbox_crs
+    :param bbox_crs: `pyproj.CRS` the bbox is expressed in
+    :param grid_crs: `pyproj.CRS` of the source grid
+    :param grid_bounds: (left, bottom, right, top) of the grid, hashable
+
+    :returns: `shapely.geometry.Polygon` in WGS84, or None if disjoint
+    """
+
     request = box(*bbox)
 
     if bbox_crs != WGS84:
@@ -257,15 +336,48 @@ def clip_bbox(bbox, bbox_crs, grid_crs, grid_bounds):
         LOGGER.debug(f'bbox {bbox} does not intersect the grid')
         return None
 
-    if clipped.geom_type == 'MultiPolygon':
-        clipped = max(clipped.geoms, key=lambda geom: geom.area)
+    # an intersection along the staircase edge of a polar cap comes back as a
+    # GeometryCollection - the area, plus a dangling LineString where the
+    # request runs flush with a bin boundary. Keep only the polygonal parts.
+    if clipped.geom_type in ('MultiPolygon', 'GeometryCollection'):
+        polygons = [
+            geom for geom in clipped.geoms if geom.geom_type == 'Polygon'
+        ]
+        if not polygons:
+            LOGGER.debug(f'bbox {bbox} touches the grid without overlapping')
+            return None
+        clipped = max(polygons, key=lambda geom: geom.area)
 
-    x, y = project_ring(clipped.exterior.coords, WGS84, grid_crs)
+    return clipped
 
-    if x.size == 0:
+
+def geographic_extent(bbox, bbox_crs, grid_crs, grid_bounds):
+    """
+    Axis-aligned WGS84 extent of a request, clipped to the grid
+
+    The geographic counterpart of native_extent: where that one gives the
+    window to read from the source grid, this gives the lon/lat extent to
+    resample that window into.
+
+    :param bbox: (minx, miny, maxx, maxy) in bbox_crs
+    :param bbox_crs: `pyproj.CRS` the bbox is expressed in
+    :param grid_crs: `pyproj.CRS` of the source grid
+    :param grid_bounds: (left, bottom, right, top) of the grid, hashable
+
+    :returns: (west, south, east, north) in WGS84, or None if disjoint
+    """
+
+    clipped = clip_bbox_geographic(bbox, bbox_crs, grid_crs, grid_bounds)
+
+    if clipped is None:
         return None
 
-    return Polygon(zip(x, y)).convex_hull
+    west, south, east, north = clipped.bounds
+
+    if west >= east or south >= north:
+        return None
+
+    return (west, south, east, north)
 
 
 def native_extent(bbox, bbox_crs, grid_crs, grid_bounds):

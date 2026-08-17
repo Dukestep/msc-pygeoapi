@@ -34,13 +34,19 @@ import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import numpy as np
 from pyproj import CRS
+from rasterio.enums import Resampling
+from rasterio.transform import from_bounds
+from rasterio.warp import reproject
 
 from pygeoapi.provider.base import (BaseProvider,
                                     ProviderConnectionError,
                                     ProviderNoDataError,
                                     ProviderQueryError)
 from msc_pygeoapi.provider.bbox_utils import (WGS84,
+                                              geographic_extent,
+                                              grid_footprint,
                                               native_extent,
                                               xarray_grid_bounds,
                                               xarray_slices)
@@ -64,6 +70,100 @@ RIOPS_CRS = CRS.from_proj4(
     '+proj=stere +lat_0=90 +lon_0=-100 +k=0.93301243 +x_0=4245000 '
     '+y_0=5295000 +R=6371229 +units=m +no_defs'
 )
+
+
+def resample_to_wgs84(data, x_field, y_field, extent, width, height):
+    """
+    Nearest-neighbour resample of a projected grid onto a WGS84 grid
+
+    CoverageJSON's Grid domain needs separable x and y axes. This grid is
+    polar stereographic and centred on the pole, so a line of constant xc is
+    not a line of constant longitude and no pair of lon/lat axes describes it
+    in place - the values have to be resampled onto a grid that is regular in
+    degrees.
+
+    Nearest neighbour is deliberate. Most of these fields are bounded or
+    masked - concentrations on 0..1, temperatures beside a land mask - and
+    interpolating across an ice edge or a coastline invents values that the
+    model never produced.
+
+    :param data: `xarray.DataArray` with x_field and y_field as its last dims
+    :param x_field: name of the projected x coordinate
+    :param y_field: name of the projected y coordinate
+    :param extent: (west, south, east, north) of the output, in WGS84
+    :param width: output width in cells
+    :param height: output height in cells
+
+    :returns: (`numpy.ndarray` of shape (..., height, width), dst_transform)
+    """
+
+    x = np.asarray(data.coords[x_field].values, dtype=float)
+    y = np.asarray(data.coords[y_field].values, dtype=float)
+
+    half_x = abs(x[1] - x[0]) / 2 if x.size > 1 else 2500.0
+    half_y = abs(y[1] - y[0]) / 2 if y.size > 1 else 2500.0
+
+    src_transform = from_bounds(
+        x.min() - half_x,
+        y.min() - half_y,
+        x.max() + half_x,
+        y.max() + half_y,
+        x.size,
+        y.size,
+    )
+    dst_transform = from_bounds(*extent, width, height)
+
+    values = np.asarray(data.values, dtype='float32')
+
+    # rasterio addresses rows north to south, xarray holds yc ascending
+    if y.size > 1 and y[1] > y[0]:
+        values = values[..., ::-1, :]
+
+    # reproject takes (band, row, col), so every leading dimension - time,
+    # depth - is folded into the band axis and restored afterwards
+    leading = values.shape[:-2]
+    source = values.reshape((-1,) + values.shape[-2:])
+    destination = np.empty(
+        (source.shape[0], height, width), dtype='float32'
+    )
+
+    reproject(
+        source=source,
+        destination=destination,
+        src_transform=src_transform,
+        src_crs=RIOPS_CRS,
+        src_nodata=np.nan,
+        dst_transform=dst_transform,
+        dst_crs=WGS84,
+        dst_nodata=np.nan,
+        resampling=Resampling.nearest,
+    )
+
+    return destination.reshape(leading + (height, width)), dst_transform
+
+
+def covjson_values(values):
+    """
+    Flatten an array into a JSON serializable CovJSON range value list
+
+    Most RIOPS fields are masked over land, and every ocean field is masked
+    below the sea floor. Resampling adds a second source of gaps, where an
+    output cell falls outside the source grid. Both arrive as NaN, which json
+    renders as a bare NaN token that is not valid JSON. CovJSON spells a
+    missing value null, so they are converted here.
+
+    :param values: `numpy.ndarray` of range values
+
+    :returns: `list` of values, with None for missing cells
+    """
+
+    values = np.asarray(values, dtype='float64')
+    missing = np.isnan(values)
+
+    if not missing.any():
+        return values.ravel().tolist()
+
+    return np.where(missing, None, values).ravel().tolist()
 
 
 class RIOPSProvider(ClimateProvider):
@@ -607,6 +707,18 @@ class RIOPSProvider(ClimateProvider):
         properties_ = properties_ + ['polar_stereographic']
         data = self._data[[*properties_]]
 
+        # lon/lat extent the CoverageJSON output is resampled onto. A request
+        # without a bbox gets the whole grid, whose footprint is a polar cap
+        # spanning every longitude
+        geographic_bbox = grid_footprint(
+            RIOPS_CRS,
+            xarray_grid_bounds(
+                self._data,
+                self._coverage_properties['x_axis_label'],
+                self._coverage_properties['y_axis_label'],
+            ),
+        ).bounds
+
         if any([bbox, datetime_ is not None, 'depth' in subsets]):
 
             LOGGER.debug('Creating spatio-temporal subset')
@@ -632,11 +744,16 @@ class RIOPSProvider(ClimateProvider):
                 extent = native_extent(
                     bbox, WGS84, RIOPS_CRS, grid_bounds
                 )
+                clipped = geographic_extent(
+                    bbox, WGS84, RIOPS_CRS, grid_bounds
+                )
 
-                if extent is None:
+                if extent is None or clipped is None:
                     msg = 'bbox does not intersect the collection'
                     LOGGER.warning(f'{msg}: {bbox}')
                     raise ProviderNoDataError(msg)
+
+                geographic_bbox = clipped
 
                 LOGGER.debug(f'Source coordinates: {bbox}')
                 LOGGER.debug(f'Destination coordinates: {extent}')
@@ -771,6 +888,7 @@ class RIOPSProvider(ClimateProvider):
                 data.coords[self.x_field].values[-1],
                 data.coords[self.y_field].values[-1]
             ],
+            'geographic_bbox': geographic_bbox,
             'time': [None, None],
             "driver": "xarray",
             "height": data.sizes[self.y_field],
@@ -804,9 +922,159 @@ class RIOPSProvider(ClimateProvider):
                 return fp.read()
 
     def gen_covjson(self, metadata, data, range_type):
+        """
+        Generate coverage as CoverageJSON representation
 
-        cj = super().gen_covjson(metadata, data, range_type)
-        cj['parameters'].pop('polar_stereographic')
-        cj['ranges'].pop('polar_stereographic')
+        The inherited implementation writes the native xc/yc values into a
+        Grid domain while the referencing block claims CRS84, because the
+        grid mapping variable here is named polar_stereographic rather than
+        crs and so never trips the projected-CRS branch in ClimateProvider.
+        The axes were metres labelled as degrees.
+
+        Here the values are resampled onto a grid that is regular in degrees,
+        so the x and y axes carry the longitudes and latitudes the referencing
+        block has always claimed.
+
+        :param metadata: coverage metadata
+        :param data: xarray Dataset
+        :param range_type: range type list
+
+        :returns: dict of CoverageJSON representation
+        """
+
+        LOGGER.debug('Creating CoverageJSON domain')
+
+        fields = [
+            var for var in range_type if var != 'polar_stereographic'
+        ]
+
+        west, south, east, north = metadata['geographic_bbox']
+
+        # the output keeps the cell count of the window that was read, so a
+        # response is the size the request implies. Degrees per cell is not
+        # the source's 5 km and varies with the latitude of the request
+        width = data.sizes[self.x_field]
+        height = data.sizes[self.y_field]
+
+        resx = (east - west) / width
+        resy = (north - south) / height
+
+        cj = {
+            'type': 'Coverage',
+            'domain': {
+                'type': 'Domain',
+                'domainType': 'Grid',
+                'axes': {
+                    # CovJSON axis values are cell centres, the extent is
+                    # cell edges, and the rows run north to south
+                    'x': {
+                        'start': west + resx / 2,
+                        'stop': east - resx / 2,
+                        'num': width
+                    },
+                    'y': {
+                        'start': north - resy / 2,
+                        'stop': south + resy / 2,
+                        'num': height
+                    }
+                },
+                'referencing': [{
+                    'coordinates': ['x', 'y'],
+                    'system': {
+                        'type': 'GeographicCRS',
+                        'id': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
+                    }
+                }]
+            },
+            'parameters': {},
+            'ranges': {}
+        }
+
+        # the order the range values are flattened in, and the CovJSON axis
+        # name for each. y and x are always the trailing two
+        axis_order = []
+
+        has_depth = 'depth' in data.coords and 'depth' in data.dims
+        if has_depth:
+            cj['domain']['axes']['z'] = {
+                'values': [
+                    float(value) for value in data.coords['depth'].values
+                ]
+            }
+            cj['domain']['referencing'].append({
+                'coordinates': ['z'],
+                'system': {
+                    'type': 'VerticalCRS',
+                    'cs': {
+                        'csAxes': [{
+                            'name': {'en': 'Depth below sea surface'},
+                            'direction': 'down',
+                            'unit': {'symbol': 'm'}
+                        }]
+                    }
+                }
+            })
+            axis_order.append(('depth', 'z'))
+
+        if self.time_field in data.coords:
+            cj['domain']['axes']['t'] = {
+                'values': [
+                    str(value) for value in np.atleast_1d(
+                        data.coords[self.time_field].values
+                    ).astype('datetime64[s]')
+                ]
+            }
+            cj['domain']['referencing'].append({
+                'coordinates': ['t'],
+                'system': {
+                    'type': 'TemporalRS',
+                    'calendar': 'Gregorian'
+                }
+            })
+            axis_order.insert(0, (self.time_field, 't'))
+
+        for var in fields:
+            pm = self._get_parameter_metadata(var, self._data[var].attrs)
+
+            cj['parameters'][pm['id']] = {
+                'type': 'Parameter',
+                'description': {
+                    'en': pm['description']
+                },
+                'unit': {
+                    'symbol': pm['unit_label']
+                },
+                'observedProperty': {
+                    'id': pm['observed_property_id'],
+                    'label': {
+                        'en': pm['observed_property_name']
+                    }
+                }
+            }
+
+            transpose = [dim for dim, _ in axis_order]
+            transpose += [self.y_field, self.x_field]
+
+            resampled, _ = resample_to_wgs84(
+                data[var].transpose(*transpose),
+                self.x_field,
+                self.y_field,
+                (west, south, east, north),
+                width,
+                height,
+            )
+
+            cj['ranges'][pm['id']] = {
+                'type': 'NdArray',
+                # dataType must be either float, integer or string
+                'dataType': self.dtype,
+                'axisNames': [
+                    name for _, name in axis_order
+                ] + ['y', 'x'],
+                'shape': [
+                    data.sizes[dim] for dim, _ in axis_order
+                ] + [height, width],
+                'values': covjson_values(resampled)
+            }
 
         return cj
